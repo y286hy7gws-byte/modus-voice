@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-ink-950: #0c0d10;
   --color-ink-900: #17181d;
@@ -12,6 +14,9 @@
   --color-ink-200: #d4d8e2;
   --color-ink-100: #e8eaf1;
   --color-ink-50: #f3f4f9;
+
+  /* Непереворачиваемый тёмный фон (сайдбар, бренд-панель) — одинаков в обеих темах */
+  --color-night: #17181d;
 
   --color-surface: #ffffff;
   --color-page: #f5f6fa;
@@ -60,6 +65,52 @@
   color-scheme: light;
 }
 
+/* ---------- тёмная тема ---------- */
+
+html.dark {
+  color-scheme: dark;
+  --tw-ring-offset-color: #1a1c22;
+
+  /* Чернила инвертируются: высокий индекс = светлее (текст), низкий = тёмные подложки */
+  --color-ink-950: #f2f3f8;
+  --color-ink-900: #dcdfe9;
+  --color-ink-800: #c0c5d4;
+  --color-ink-700: #a6adc0;
+  --color-ink-600: #8e95a8;
+  --color-ink-500: #767d90;
+  --color-ink-400: #5f6678;
+  --color-ink-300: #4b5162;
+  --color-ink-200: #343945;
+  --color-ink-100: #2a2d38;
+  --color-ink-50: #23252e;
+
+  --color-surface: #1a1c22;
+  --color-page: #131419;
+
+  /* Светлые тинты 50/100 становятся полупрозрачной подсветкой акцента */
+  --color-brand-50: rgb(99 102 241 / 0.12);
+  --color-brand-100: rgb(99 102 241 / 0.2);
+  --color-good-50: rgb(16 185 129 / 0.12);
+  --color-good-100: rgb(16 185 129 / 0.22);
+  --color-warn-50: rgb(245 158 11 / 0.14);
+  --color-warn-100: rgb(245 158 11 / 0.24);
+  --color-bad-50: rgb(239 68 68 / 0.14);
+  --color-bad-100: rgb(239 68 68 / 0.24);
+  --color-info-50: rgb(59 130 246 / 0.14);
+  --color-info-100: rgb(59 130 246 / 0.24);
+
+  /* Тексты-акценты 600/700 чуть светлее для читаемости на тёмном;
+     кнопки это переживают, т.к. hover/active остаются согласованными */
+  --color-brand-600: #6366f1;
+  --color-brand-700: #747bf3;
+  --color-brand-800: #5b5ee6;
+  --color-good-700: #059669;
+  --color-warn-600: #f5a623;
+  --color-bad-600: #ef4444;
+  --color-bad-700: #d63a3a;
+  --color-info-600: #3b82f6;
+}
+
 html,
 body {
   height: 100%;
@@ -93,6 +144,16 @@ body {
 
 ::selection {
   background: #c7d2fe;
+}
+
+html.dark {
+  scrollbar-color: #3a3e4a transparent;
+}
+html.dark ::selection {
+  background: #3730a3;
+}
+html.dark *::-webkit-scrollbar-thumb {
+  background: #3a3e4a;
 }
 
 /* ---------- shared component classes ---------- */
@@ -250,4 +311,17 @@ body {
   background-image: linear-gradient(90deg, #e8eaf1 25%, #f3f4f9 50%, #e8eaf1 75%);
   background-size: 200% 100%;
   animation: mv-shimmer 1.4s linear infinite;
+}
+html.dark .skeleton {
+  background-image: linear-gradient(90deg, #2a2d38 25%, #343945 50%, #2a2d38 75%);
+}
+
+/* На время переключения темы гасим переходы: при смене var()-палитры
+   Chromium может "зависнуть" на старом вычисленном стиле элемента
+   (transition + изменение custom property), и фон не перерисуется. */
+html.theme-switching,
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
 }

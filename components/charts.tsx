@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -18,6 +19,39 @@ import {
 const BRAND = "#4f46e5";
 const GOOD = "#059669";
 const INK = "#6a7080";
+
+/* Recharts задаёт цвет SVG-атрибутами (var() там не работает),
+   поэтому служебные цвета графиков зависят от активной темы напрямую. */
+const CHART_COLORS = {
+  light: {
+    grid: "#e8eaf1",
+    tick: "#8a90a0",
+    axis: "#4c5160",
+    cursorStroke: "#d4d8e2",
+    cursorFill: "#f3f4f9",
+  },
+  dark: {
+    grid: "#262933",
+    tick: "#6a7080",
+    axis: "#a6adc0",
+    cursorStroke: "#343742",
+    cursorFill: "rgb(255 255 255 / 0.04)",
+  },
+} as const;
+
+/** Реактивно отслеживает класс `dark` на <html>. */
+function useIsDark(): boolean {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    const root = document.documentElement;
+    const sync = () => setDark(root.classList.contains("dark"));
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+  return dark;
+}
 
 function fmtShort(v: number | string): string {
   if (typeof v === "string") return v;
@@ -40,8 +74,6 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   );
 }
 
-const X_STYLE = { fontSize: 11, fill: "#8a90a0" } as const;
-
 export function TrendAreaChart({
   data,
   keys,
@@ -51,6 +83,8 @@ export function TrendAreaChart({
   keys: Array<{ key: string; label: string; color?: string }>;
   height?: number;
 }) {
+  const C = useIsDark() ? CHART_COLORS.dark : CHART_COLORS.light;
+  const tick = { fontSize: 11, fill: C.tick };
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
@@ -62,10 +96,10 @@ export function TrendAreaChart({
             </linearGradient>
           ))}
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e8eaf1" vertical={false} />
-        <XAxis dataKey="label" tick={X_STYLE} axisLine={false} tickLine={false} dy={6} />
-        <YAxis tick={X_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
-        <Tooltip content={<ChartTooltip />} cursor={{ stroke: "#d4d8e2" }} />
+        <CartesianGrid strokeDasharray="3 3" stroke={C.grid} vertical={false} />
+        <XAxis dataKey="label" tick={tick} axisLine={false} tickLine={false} dy={6} />
+        <YAxis tick={tick} axisLine={false} tickLine={false} allowDecimals={false} />
+        <Tooltip content={<ChartTooltip />} cursor={{ stroke: C.cursorStroke }} />
         {keys.map((k, i) => (
           <Area
             key={k.key}
@@ -93,13 +127,14 @@ export function HBarChart({
   color?: string;
   height?: number;
 }) {
+  const C = useIsDark() ? CHART_COLORS.dark : CHART_COLORS.light;
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, bottom: 0, left: 4 }} barCategoryGap="18%">
-        <CartesianGrid strokeDasharray="3 3" stroke="#e8eaf1" horizontal={false} />
-        <XAxis type="number" tick={X_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
-        <YAxis type="category" dataKey="label" tick={{ fontSize: 12, fill: "#4c5160" }} width={110} axisLine={false} tickLine={false} />
-        <Tooltip content={<ChartTooltip />} cursor={{ fill: "#f3f4f9" }} />
+        <CartesianGrid strokeDasharray="3 3" stroke={C.grid} horizontal={false} />
+        <XAxis type="number" tick={{ fontSize: 11, fill: C.tick }} axisLine={false} tickLine={false} allowDecimals={false} />
+        <YAxis type="category" dataKey="label" tick={{ fontSize: 12, fill: C.axis }} width={110} axisLine={false} tickLine={false} />
+        <Tooltip content={<ChartTooltip />} cursor={{ fill: C.cursorFill }} />
         <Bar dataKey="value" name="Обращения" fill={color} radius={[0, 6, 6, 0]} maxBarSize={22} />
       </BarChart>
     </ResponsiveContainer>
@@ -145,13 +180,15 @@ export function VBarChart({
   color?: string;
   height?: number;
 }) {
+  const C = useIsDark() ? CHART_COLORS.dark : CHART_COLORS.light;
+  const tick = { fontSize: 11, fill: C.tick };
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -18 }} barCategoryGap="30%">
-        <CartesianGrid strokeDasharray="3 3" stroke="#e8eaf1" vertical={false} />
-        <XAxis dataKey="label" tick={X_STYLE} axisLine={false} tickLine={false} dy={6} />
-        <YAxis tick={X_STYLE} axisLine={false} tickLine={false} allowDecimals={false} />
-        <Tooltip content={<ChartTooltip />} cursor={{ fill: "#f3f4f9" }} />
+        <CartesianGrid strokeDasharray="3 3" stroke={C.grid} vertical={false} />
+        <XAxis dataKey="label" tick={tick} axisLine={false} tickLine={false} dy={6} />
+        <YAxis tick={tick} axisLine={false} tickLine={false} allowDecimals={false} />
+        <Tooltip content={<ChartTooltip />} cursor={{ fill: C.cursorFill }} />
         <Bar dataKey="value" name="Реализовано" fill={color} radius={[6, 6, 0, 0]} maxBarSize={34} />
       </BarChart>
     </ResponsiveContainer>

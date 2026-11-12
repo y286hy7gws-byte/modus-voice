@@ -8,6 +8,7 @@ import { DEMO_ACCOUNTS, DEMO_PASSWORD, ROLES } from "@/lib/constants";
 import { homePathFor } from "@/lib/rights";
 import { Button, Input, Field } from "@/components/ui/kit";
 import { toast } from "@/components/ui/toast";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const FEATURES = [
@@ -56,9 +57,14 @@ export default function LoginPage() {
   const isDemo = backend.mode === "demo";
 
   return (
-    <div className="flex min-h-screen bg-page">
+    <div className="relative flex min-h-screen bg-page">
+      {/* Theme toggle */}
+      <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
+        <ThemeToggle />
+      </div>
+
       {/* Brand panel */}
-      <div className="relative hidden w-[46%] flex-col justify-between overflow-hidden bg-ink-900 p-10 lg:flex xl:p-14">
+      <div className="relative hidden w-[46%] flex-col justify-between overflow-hidden bg-night p-10 lg:flex xl:p-14">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -73,14 +79,14 @@ export default function LoginPage() {
             </span>
             <div>
               <div className="text-[15px] font-extrabold tracking-[0.14em] text-white">MODUS VOICE</div>
-              <div className="text-[11px] font-medium tracking-[0.08em] text-ink-300/70">ГК «МОДУС ТРЕЙД»</div>
+              <div className="text-[11px] font-medium tracking-[0.08em] text-white/50">ГК «МОДУС ТРЕЙД»</div>
             </div>
           </div>
 
           <h1 className="mt-16 max-w-md text-[34px] font-extrabold leading-[1.15] tracking-[-0.02em] text-white xl:text-[38px]">
             Ни одна идея сотрудника не должна потеряться
           </h1>
-          <p className="mt-4 max-w-md text-[14.5px] leading-relaxed text-ink-300">
+          <p className="mt-4 max-w-md text-[14.5px] leading-relaxed text-white/70">
             Платформа полного жизненного цикла обращений: от идеи сотрудника до зафиксированного решения компании.
           </p>
 
@@ -90,13 +96,13 @@ export default function LoginPage() {
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-brand-300">
                   <f.icon size={16} />
                 </span>
-                <span className="text-[13.5px] text-ink-300">{f.text}</span>
+                <span className="text-[13.5px] text-white/70">{f.text}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="relative text-[11.5px] text-ink-300/50">
+        <div className="relative text-[11.5px] text-white/38">
           Pavlodar Hub × ГК «Модус Трейд» · Hackathon MVP · Внутренний контур компании
         </div>
       </div>

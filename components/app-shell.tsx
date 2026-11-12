@@ -25,6 +25,7 @@ import { ROLES } from "@/lib/constants";
 import { cn, initials } from "@/lib/utils";
 import { Avatar } from "@/components/ui/kit";
 import { Menu, MenuItem, MenuItemDivider, Button } from "@/components/ui/kit";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 interface NavItem {
   href: string;
@@ -91,7 +92,7 @@ function Logo() {
       </span>
       <span className="leading-tight">
         <span className="block text-[13px] font-extrabold tracking-[0.14em] text-white">MODUS VOICE</span>
-        <span className="block text-[10px] font-medium tracking-[0.08em] text-ink-300/70">
+        <span className="block text-[10px] font-medium tracking-[0.08em] text-white/50">
           ГОЛОС КАЖДОГО СОТРУДНИКА
         </span>
       </span>
@@ -113,7 +114,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {sections.map((section) => (
           <div key={section.title} className="mb-5">
-            <div className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-ink-300/50">
+            <div className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-white/38">
               {section.title}
             </div>
             <div className="space-y-0.5">
@@ -129,13 +130,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       "group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150",
                       active
                         ? "bg-white/10 text-white"
-                        : "text-ink-300/80 hover:bg-white/5 hover:text-white",
+                        : "text-white/55 hover:bg-white/5 hover:text-white",
                     )}
                   >
                     {active && (
                       <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand-400" />
                     )}
-                    <span className={cn("transition-colors", active ? "text-brand-300" : "text-ink-300/60 group-hover:text-brand-300")}>
+                    <span className={cn("transition-colors", active ? "text-brand-300" : "text-white/45 group-hover:text-brand-300")}>
                       {item.icon}
                     </span>
                     <span className="flex-1 truncate">{item.label}</span>
@@ -160,9 +161,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <Avatar name={user.name} color={user.color} size={36} />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[13px] font-semibold text-white">{user.name}</span>
-            <span className="block truncate text-[11px] text-ink-300/60">{ROLES[user.role].label}</span>
+            <span className="block truncate text-[11px] text-white/45">{ROLES[user.role].label}</span>
           </span>
-          <ChevronRight size={15} className="text-ink-300/50" />
+          <ChevronRight size={15} className="text-white/38" />
         </Link>
       </div>
     </div>
@@ -323,18 +324,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-page">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] bg-ink-900 lg:block xl:w-[264px]">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] bg-night lg:block xl:w-[264px]">
         <SidebarContent />
       </aside>
 
       {/* Mobile drawer */}
       {drawerOpen && (
         <div className="fixed inset-0 z-[60] lg:hidden">
-          <div className="anim-fade absolute inset-0 bg-ink-950/50" onClick={() => setDrawerOpen(false)} />
-          <aside className="anim-fade absolute inset-y-0 left-0 w-[280px] bg-ink-900 shadow-pop">
+          <div className="anim-fade absolute inset-0 bg-black/50" onClick={() => setDrawerOpen(false)} />
+          <aside className="anim-fade absolute inset-y-0 left-0 w-[280px] bg-night shadow-pop">
             <button
               onClick={() => setDrawerOpen(false)}
-              className="absolute right-3 top-5 z-10 rounded-lg p-1.5 text-ink-300 hover:bg-white/10"
+              className="absolute right-3 top-5 z-10 rounded-lg p-1.5 text-white/70 hover:bg-white/10"
               aria-label="Закрыть меню"
             >
               <X size={18} />
@@ -372,6 +373,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <div className="flex-1" />
 
+          <ThemeToggle />
           <NotificationsMenu />
           <UserMenu />
         </header>
