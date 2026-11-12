@@ -33,6 +33,7 @@ const TYPE_OPTIONS: Array<{ value: RequestType; label: string; icon: typeof Ligh
   { value: "SUGGESTION", label: TYPES.SUGGESTION.label, icon: ThumbsUp },
   { value: "PROCESS", label: TYPES.PROCESS.label, icon: Workflow },
   { value: "OTHER", label: TYPES.OTHER.label, icon: HelpCircle },
+  { value: "FEEDBACK", label: TYPES.FEEDBACK.label, icon: PartyPopper },
 ];
 
 const schema = z.object({
@@ -188,7 +189,7 @@ export default function NewRequestPage() {
       };
       const req = await createRequest(payload);
       setCreated(req);
-      toast("success", `Обращение ${req.id} зарегистрировано`, "Ответственный будет назначен администратором.");
+      toast("success", `Обращение ${req.id} зарегистрировано`, "Система направила обращение ответственному по правилу маршрутизации.");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
       /* toast уже показан в store */
@@ -210,7 +211,7 @@ export default function NewRequestPage() {
           {/* Type selector */}
           <div className="mb-6">
             <span className="label">Тип обращения</span>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
               {TYPE_OPTIONS.map((o) => (
                 <button
                   key={o.value}

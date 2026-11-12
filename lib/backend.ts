@@ -56,6 +56,8 @@ export interface Backend {
   deleteUser(actorId: string, userId: string): Promise<void>;
   addCategory(actorId: string, name: string): Promise<Category>;
   updateCategory(actorId: string, categoryId: string, patch: Partial<Pick<Category, "name" | "active">>): Promise<Category>;
+  /** Set or clear the default responsible for a category (routing rules, admin-only). */
+  setRoutingRule(actorId: string, categoryId: string, assigneeId: string | null): Promise<void>;
   resetDemo?(): Promise<void>;
 }
 

@@ -6,13 +6,14 @@ import Link from "next/link";
 import { useApp } from "@/lib/store";
 import { enrichAll } from "@/lib/selectors";
 import type { RequestStatus, Priority } from "@/lib/types";
-import { STATUSES, STATUS_ORDER, PRIORITIES, PRIORITIES_ORDER } from "@/lib/constants";
+import { STATUSES, STATUS_ORDER, PRIORITIES, PRIORITIES_ORDER, OPEN_STATUSES } from "@/lib/constants";
 import { PageHeader } from "@/components/app-shell";
 import { RequestTable } from "@/components/request-table";
 import { Button, Card, EmptyState, Input, Select } from "@/components/ui/kit";
 import { RequireRole } from "@/components/route-guard";
 
 type Mine = "all" | "assigned" | "authored";
+type DueFilter = "all" | "overdue" | "week" | "none";
 
 function AllRequestsInner() {
   const { user, snapshot } = useApp();
@@ -20,12 +21,32 @@ function AllRequestsInner() {
   const [status, setStatus] = useState<"all" | RequestStatus>("all");
   const [category, setCategory] = useState("all");
   const [priority, setPriority] = useState<"all" | Priority>("all");
+  const [department, setDepartment] = useState("all");
+  const [due, setDue] = useState<DueFilter>("all");
   const [scope, setScope] = useState<Mine>("all");
 
   const requests = useMemo(
     () => (user && snapshot ? enrichAll(snapshot, user) : []),
     [user, snapshot],
   );
+
+  // Отдел автора (для фильтра по подразделению; анонимные обращения без автора не имеют отдела)
+  const authorDept = useMemo(() => {
+    const m: Record<string, string> = {};
+    if (snapshot) for (const p of snapshot.profiles) m[p.id] = p.department;
+    return m;
+  }, [snapshot]);
+
+  const departments = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of requests) {
+      if (!r.authorId) continue;
+      const d = authorDept[r.authorId];
+      if (d) set.add(d);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, "ru"));
+  }, [requests, authorDept]);
+
   const attachments = useMemo(() => {
     const m: Record<string, number> = {};
     for (const r of requests) if (r.attachmentCount) m[r.id] = r.attachmentCount;
@@ -53,8 +74,22 @@ function AllRequestsInner() {
     if (status !== "all") list = list.filter((r) => r.status === status);
     if (category !== "all") list = list.filter((r) => r.categoryId === category);
     if (priority !== "all") list = list.filter((r) => r.priority === priority);
+    if (department !== "all") {
+      list = list.filter((r) => (r.authorId ? authorDept[r.authorId] === department : false));
+    }
+    if (due !== "all") {
+      const nowMs = Date.now();
+      list = list.filter((r) => {
+        if (due === "none") return !r.dueDate;
+        if (!r.dueDate) return false;
+        const open = OPEN_STATUSES.includes(r.status);
+        const t = new Date(r.dueDate).getTime();
+        if (due === "overdue") return open && t < nowMs;
+        return open && t >= nowMs && t <= nowMs + 7 * 86400000;
+      });
+    }
     return list;
-  }, [requests, scope, query, status, category, priority, user]);
+  }, [requests, scope, query, status, category, priority, department, due, user, authorDept]);
 
   if (!user || !snapshot) {
     return (
@@ -123,6 +158,20 @@ function AllRequestsInner() {
                   </option>
                 ))}
               </Select>
+              <Select value={department} onChange={(e) => setDepartment(e.target.value)} className="w-[170px]">
+                <option value="all">Все подразделения</option>
+                {departments.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </Select>
+              <Select value={due} onChange={(e) => setDue(e.target.value as DueFilter)} className="w-[160px]">
+                <option value="all">Любой срок</option>
+                <option value="overdue">Просроченные</option>
+                <option value="week">Срок до 7 дней</option>
+                <option value="none">Без срока</option>
+              </Select>
             </div>
           </div>
           {user.role === "MANAGER" && (
@@ -166,6 +215,8 @@ function AllRequestsInner() {
                   setStatus("all");
                   setPriority("all");
                   setCategory("all");
+                  setDepartment("all");
+                  setDue("all");
                   setScope("all");
                 }}
               >

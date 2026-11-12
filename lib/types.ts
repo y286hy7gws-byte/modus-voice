@@ -1,6 +1,6 @@
 export type Role = "EMPLOYEE" | "MANAGER" | "ADMIN";
 
-export type RequestType = "IDEA" | "PROBLEM" | "SUGGESTION" | "PROCESS" | "OTHER";
+export type RequestType = "IDEA" | "PROBLEM" | "SUGGESTION" | "PROCESS" | "OTHER" | "FEEDBACK";
 
 export type RequestStatus =
   | "NEW"
@@ -20,7 +20,8 @@ export type NotificationKind =
   | "COMMENT"
   | "INFO_REQUESTED"
   | "DECISION"
-  | "IMPLEMENTED";
+  | "IMPLEMENTED"
+  | "DEADLINE";
 
 export interface Profile {
   id: string;
@@ -105,6 +106,13 @@ export interface Attachment {
 
 export interface AuthedUser extends Omit<Profile, "password"> {}
 
+/** Routing rule: which responsible is the default assignee for a category. */
+export interface RoutingRule {
+  categoryId: string;
+  /** null = no auto-assignment, request goes to the manual assignment queue */
+  assigneeId: string | null;
+}
+
 export interface Snapshot {
   profiles: Profile[]; // passwords stripped for the client
   categories: Category[];
@@ -113,6 +121,7 @@ export interface Snapshot {
   history: HistoryEntry[];
   notifications: NotificationItem[]; // own only
   attachments: Attachment[];
+  routing: RoutingRule[]; // category → default responsible (admin-managed)
   publicStats: PublicStats;
   /** Company-wide status distribution, visible to every authenticated role (public stats). */
   publicStatusCounts?: Partial<Record<Request["status"], number>>;

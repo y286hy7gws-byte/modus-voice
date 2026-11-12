@@ -1,17 +1,23 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import {
   Inbox,
   CheckCircle2,
   Trophy,
   Percent,
   Timer,
+  Repeat2,
+  MessageSquareText,
+  ListChecks,
+  Flag,
 } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { enrichAll } from "@/lib/selectors";
-import { STATUSES, STATUS_ORDER } from "@/lib/constants";
-import type { RequestStatus } from "@/lib/types";
+import { STATUSES, STATUS_ORDER, TYPES } from "@/lib/constants";
+import { computeTzMetrics, findRepeatedProblems } from "@/lib/analytics-metrics";
+import type { RequestStatus, RequestType } from "@/lib/types";
 import { cn, formatHours, lastNMonths, monthKey, monthLabel } from "@/lib/utils";
 import { PageHeader } from "@/components/app-shell";
 import { StatCard } from "@/components/stat-card";
@@ -77,7 +83,15 @@ export default function AnalyticsPage() {
     const avgDays = resolved.length ? resolved.reduce((a, b) => a + b, 0) / resolved.length : 0;
     const fast = resolved.filter((d) => d <= 7).length;
 
-    return { isAdmin, all, trend, implementedByMonth, byCategory, byStatus, avgDays, fast };
+    // Метрики ТЗ 2.7: время первого ответа, доля рассмотренных, доля с результатом
+    const tz = computeTzMetrics(all, snapshot.comments, snapshot.history);
+    const repeated = findRepeatedProblems(all, 30, 2);
+    const byType = (Object.keys(TYPES) as RequestType[])
+      .map((t) => ({ label: TYPES[t].label, value: all.filter((r) => r.type === t).length }))
+      .filter((x) => x.value > 0)
+      .sort((a, b) => b.value - a.value);
+
+    return { isAdmin, all, trend, implementedByMonth, byCategory, byStatus, avgDays, fast, tz, repeated, byType };
   }, [user, snapshot, months]);
 
   if (!user || !snapshot || !view) {
@@ -126,6 +140,20 @@ export default function AnalyticsPage() {
 
       {view.isAdmin ? (
         <>
+          {/* Метрики по ТЗ 2.7 */}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              icon={<MessageSquareText size={18} />}
+              label="Время до первого ответа"
+              value={view.tz.avgFirstResponseHours != null ? formatHours(view.tz.avgFirstResponseHours) : "—"}
+              sub={`Первый ответ получен по ${view.tz.answeredCount} из ${view.tz.total}`}
+              accent="info"
+            />
+            <StatCard icon={<ListChecks size={18} />} label="Доля рассмотренных" value={`${view.tz.reviewedShare.toFixed(0)}%`} sub="Взяты в работу ответственных" accent="brand" />
+            <StatCard icon={<Flag size={18} />} label="С зафиксированным результатом" value={`${view.tz.decidedShare.toFixed(0)}%`} sub="Реализовано или отклонено с объяснением" accent="good" />
+            <StatCard icon={<Trophy size={18} />} label="Реализованных улучшений" value={view.tz.implementedCount} sub="Внедрено по итогам обращений" accent="warn" />
+          </div>
+
           <div className="grid gap-5 xl:grid-cols-2">
             <Card className="p-5">
               <SectionTitle>Динамика обращений</SectionTitle>
@@ -158,6 +186,66 @@ export default function AnalyticsPage() {
             <Card className="p-5">
               <SectionTitle>Реализованные идеи по месяцам</SectionTitle>
               <VBarChart data={view.implementedByMonth} height={Math.max(220, 250)} />
+            </Card>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-2">
+            {/* Повторяющиеся проблемы */}
+            <Card className="p-5">
+              <SectionTitle>Повторяющиеся проблемы</SectionTitle>
+              <p className="mb-3 text-[12px] text-ink-400">
+                Темы, по которым за последние 30 дней поступило два и более обращения, — сигнал о системной проблеме
+                или направлении улучшения процессов.
+              </p>
+              {view.repeated.length === 0 ? (
+                <div className="flex items-center gap-2 rounded-xl bg-good-50 px-3.5 py-3 text-[12.5px] text-good-700">
+                  <CheckCircle2 size={15} />
+                  Повторяющихся тем за месяц нет.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {view.repeated.map((rep) => {
+                    const catName = snapshot.categories.find((c) => c.id === rep.categoryId)?.name ?? "Без категории";
+                    const isNewestOpen = rep.open > 0;
+                    return (
+                      <Link
+                        key={rep.categoryId}
+                        href={`/requests/${rep.ids[rep.ids.length - 1]}`}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors",
+                          isNewestOpen
+                            ? "border-warn-100 bg-warn-50/50 hover:bg-warn-50"
+                            : "border-ink-100 bg-ink-50/60 hover:bg-ink-50",
+                        )}
+                      >
+                        <Repeat2 size={15} className={cn("shrink-0", isNewestOpen ? "text-warn-600" : "text-ink-400")} />
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink-900">{catName}</span>
+                        <span className="num shrink-0 text-[11.5px] text-ink-500">
+                          открыто: {rep.open} из {rep.count}
+                        </span>
+                        <span
+                          className={cn(
+                            "num flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white",
+                            isNewestOpen ? "bg-warn-500" : "bg-ink-400",
+                          )}
+                        >
+                          {rep.count}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+
+            {/* Обращения по типам */}
+            <Card className="p-5">
+              <SectionTitle>Обращения по типам</SectionTitle>
+              {view.byType.length === 0 ? (
+                <div className="py-8 text-center text-[13px] text-ink-400">Нет данных</div>
+              ) : (
+                <HBarChart data={view.byType} height={Math.max(200, view.byType.length * 44)} />
+              )}
             </Card>
           </div>
 

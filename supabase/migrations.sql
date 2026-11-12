@@ -7,8 +7,8 @@
 --
 -- Адаптер lib/backends/supabase.ts рассчитывает ровно на эти объекты:
 --   profiles, categories, requests (internal_id + request_code), comments,
---   status_history, notifications, attachments, RPC public_stats_v1,
---   create_user_v1, delete_user_v1.
+--   status_history, notifications, attachments, routing_rules,
+--   RPC public_stats_v1, create_user_v1, delete_user_v1.
 --
 -- ВАЖНО: для изменения структуры при включённом RLS используйте SQL Editor
 -- под владельцем проекта (Postgres role "postgres" / dashboard SQL editor).
@@ -74,7 +74,7 @@ create table if not exists public.requests (
   request_code       text unique not null,
   title              text not null,
   description        text not null,
-  type               text not null check (type in ('IDEA', 'PROBLEM', 'SUGGESTION', 'PROCESS', 'OTHER')),
+  type               text not null check (type in ('IDEA', 'PROBLEM', 'SUGGESTION', 'PROCESS', 'OTHER', 'FEEDBACK')),
   category_id        uuid not null references public.categories (id) on update cascade,
   priority           text not null check (priority in ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
   status             text not null default 'NEW'
@@ -177,6 +177,31 @@ create table if not exists public.notifications (
   created_at  timestamptz not null default now()
 );
 create index if not exists notifications_user_idx on public.notifications (user_id, created_at desc);
+
+-- ----------------------------------------------------------------------------
+-- 5.1 Правила маршрутизации (категория → ответственный по умолчанию)
+-- ----------------------------------------------------------------------------
+create table if not exists public.routing_rules (
+  category_id  uuid primary key references public.categories (id) on delete cascade,
+  assignee_id  uuid references public.profiles (id) on set null, -- null = вручную
+  updated_at   timestamptz not null default now()
+);
+
+alter table public.routing_rules enable row level security;
+
+drop policy if exists routing_rules_select_all on public.routing_rules;
+create policy routing_rules_select_all on public.routing_rules
+  for select to authenticated using (true);
+
+drop policy if exists routing_rules_write_admin on public.routing_rules;
+create policy routing_rules_write_admin on public.routing_rules
+  for all to authenticated
+  using (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'ADMIN')
+  )
+  with check (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'ADMIN')
+  );
 
 -- ----------------------------------------------------------------------------
 -- 6. Включение RLS
@@ -504,17 +529,28 @@ end;
 $$;
 
 -- ----------------------------------------------------------------------------
--- 9. Системный набор категорий
+-- 9. Системный набор категорий (из демонстрационного набора A-001…A-020)
 -- ----------------------------------------------------------------------------
 insert into public.categories (name, is_system, sort_order)
 values
-  ('Производство', true, 1),
-  ('Логистика',    true, 2),
-  ('Безопасность', true, 3),
-  ('IT',           true, 4),
-  ('Управление',   true, 5),
-  ('HR',           true, 6),
-  ('Другое',       true, 7)
+  ('Межотдельное взаимодействие', true, 1),
+  ('Информационная прозрачность', true, 2),
+  ('Каталог и данные',            true, 3),
+  ('Обучение',                    true, 4),
+  ('Документооборот',             true, 5),
+  ('Регламенты',                  true, 6),
+  ('Интеграции и IT',             true, 7),
+  ('Знания и наставничество',     true, 8),
+  ('Договорная работа',           true, 9),
+  ('Задачи и коммуникации',       true, 10),
+  ('Оперативность',               true, 11),
+  ('Коммуникации',                true, 12),
+  ('Проектная деятельность',      true, 13),
+  ('Планирование ресурсов',       true, 14),
+  ('Постановка задач',            true, 15),
+  ('Корпоративная среда',         true, 16),
+  ('Хранение документов',         true, 17),
+  ('Прозрачность результатов',    true, 18)
 on conflict do nothing;
 
 alter table public.categories enable row level security;
@@ -523,12 +559,19 @@ alter table public.categories enable row level security;
 -- 10. Демо-данные
 --
 -- 1) Authentication → Add user (email + пароль, confirmed):
---      admin@modus.demo / employee@modus.demo / manager@modus.demo (пароль demo12345)
+--      admin@modus.demo / manager@modus.demo / employee@modus.demo и остальные
+--      демо-аккаунты из README (пароль demo12345)
 -- 2) Скопируйте id созданных пользователей сюда:
 --
 -- insert into public.profiles (id, email, name, role, position, department)
 -- values
---   ('<admin-id>',    'admin@modus.demo',    'Аслан Мусин',     'ADMIN',    'Руководитель цифровых сервисов', 'Департамент IT'),
---   ('<manager-id>',  'manager@modus.demo',  'Елена Ковалёва',  'MANAGER',  'Руководитель логистики',         'Департамент логистики'),
---   ('<employee-id>', 'employee@modus.demo', 'Дмитрий Соколов', 'EMPLOYEE', 'Водитель-экспедитор 1 категории','Департамент логистики');
+--   ('<admin-id>',    'admin@modus.demo',    'Игорь Северов',      'ADMIN',    'Администратор системы',      'Управление'),
+--   ('<manager-id>',  'manager@modus.demo',  'Марина Зайцева',     'MANAGER',  'Руководитель направления',   'Управление'),
+--   ('<employee-id>', 'employee@modus.demo', 'Павел Дорохов',      'EMPLOYEE', 'Сотрудник закупок',          'Закупки'),
+--   ('<zakup-id>',    'zakup@modus.demo',    'Сергей Калинин',     'MANAGER',  'Руководитель закупок',       'Закупки'),
+--   ('<it-id>',       'it@modus.demo',       'Максим Тарасов',     'MANAGER',  'IT-специалист',              'IT'),
+--   ('<buhmgr-id>',   'buh-manager@modus.demo','Наталья Ефимова',  'MANAGER',  'Руководитель бухгалтерии',   'Финансы'),
+--   ('<sales-id>',    'sales@modus.demo',    'Артём Логинов',      'MANAGER',  'Руководитель продаж',        'Продажи'),
+--   ('<project-id>',  'project@modus.demo',  'Виктория Стрельцова','MANAGER',  'Руководитель проектов',      'Проекты'),
+--   ('<hr-id>',       'hr@modus.demo',       'Елена Домрачева',    'MANAGER',  'HR-руководитель',            'Персонал');
 -- ============================================================================

@@ -6,6 +6,7 @@ import type {
   NewRequestPayload,
   Request,
   Role,
+  RoutingRule,
   Snapshot,
 } from "../types";
 import { buildHistory, type Backend, type NotificationDraft, type RequestPatch } from "../backend";
@@ -20,10 +21,11 @@ interface DemoDb {
   history: Snapshot["history"];
   notifications: NotificationItem[];
   attachments: Snapshot["attachments"];
+  routing: RoutingRule[];
   nextSeq: number;
 }
 
-const DB_KEY = "modus-voice:db:v1";
+const DB_KEY = "modus-voice:db:v2";
 const SESSION_KEY = "modus-voice:session:v1";
 
 function freshDb(): DemoDb {
@@ -36,7 +38,8 @@ function freshDb(): DemoDb {
     history: snap.history,
     notifications: snap.notifications,
     attachments: snap.attachments,
-    nextSeq: 19,
+    routing: snap.routing,
+    nextSeq: 21,
   };
 }
 
@@ -46,7 +49,7 @@ function loadDb(): DemoDb {
     const raw = window.localStorage.getItem(DB_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as DemoDb;
-      if (parsed && Array.isArray(parsed.profiles) && parsed.nextSeq) return parsed;
+      if (parsed && Array.isArray(parsed.profiles) && Array.isArray(parsed.routing) && parsed.nextSeq) return parsed;
     }
   } catch {
     // corrupted storage — reseed
@@ -126,6 +129,7 @@ export class DemoBackend implements Backend {
         .filter((n) => n.userId === userId)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       attachments: db.attachments.filter((a) => visibleIds.has(a.requestId)),
+      routing: db.routing,
       publicStats: computePublicStats(db.requests),
       publicStatusCounts: db.requests.reduce(
         (acc, r) => ({ ...acc, [r.status]: (acc[r.status] ?? 0) + 1 }),
@@ -349,6 +353,15 @@ export class DemoBackend implements Backend {
     Object.assign(cat, patch);
     this.persist();
     return cat;
+  }
+
+  async setRoutingRule(actorId: string, categoryId: string, assigneeId: string | null): Promise<void> {
+    void actorId;
+    const db = this.DB;
+    const existing = db.routing.find((x) => x.categoryId === categoryId);
+    if (existing) existing.assigneeId = assigneeId;
+    else db.routing.push({ categoryId, assigneeId });
+    this.persist();
   }
 
   async resetDemo(): Promise<void> {

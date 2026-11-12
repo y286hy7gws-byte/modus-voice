@@ -93,12 +93,13 @@ export class SupabaseBackend implements Backend {
   }
 
   async loadSnapshot(userId: string, role: Role): Promise<Snapshot> {
-    const [reqRes, profRes, catRes, nRes, statsRes] = await Promise.all([
+    const [reqRes, profRes, catRes, nRes, statsRes, routRes] = await Promise.all([
       this.sb.from("requests").select("*").order("created_at", { ascending: false }),
       this.sb.from("profiles").select("*"),
       this.sb.from("categories").select("*").order("sort_order"),
       this.sb.from("notifications").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
       this.sb.rpc("public_stats_v1"),
+      this.sb.from("routing_rules").select("*"),
     ]);
     if (reqRes.error) throw reqRes.error;
     if (profRes.error) throw profRes.error;
@@ -155,6 +156,7 @@ export class SupabaseBackend implements Backend {
       requests,
       comments,
       history,
+      routing: (routRes.data ?? []).map((rr: Row) => ({ categoryId: rr.category_id, assigneeId: rr.assignee_id })),
       notifications: (nRes.data ?? []).map((n: Row) => ({
         id: n.id,
         userId: n.user_id,
@@ -347,7 +349,15 @@ export class SupabaseBackend implements Backend {
     void actorId;
     const { data, error } = await this.sb.from("categories").insert({ name }).select("*").single();
     if (error) throw error;
-    return { id: data.id, name: data.name, active: data.active };
+    return { id: data.id, name: data.name, active: data.active, system: data.is_system };
+  }
+
+  async setRoutingRule(actorId: string, categoryId: string, assigneeId: string | null): Promise<void> {
+    void actorId;
+    const { error } = await this.sb
+      .from("routing_rules")
+      .upsert({ category_id: categoryId, assignee_id: assigneeId }, { onConflict: "category_id" });
+    if (error) throw error;
   }
 
   async updateCategory(

@@ -14,6 +14,7 @@ import {
   Rocket,
   Inbox,
   ArrowRight,
+  AlarmClock,
 } from "lucide-react";
 import { useApp } from "@/lib/store";
 import type { NotificationItem, NotificationKind } from "@/lib/types";
@@ -29,6 +30,7 @@ const KIND_META: Record<NotificationKind, { icon: typeof Bell; cls: string; labe
   INFO_REQUESTED: { icon: Info, cls: "bg-warn-50 text-warn-600", label: "Запрос информации" },
   DECISION: { icon: XCircle, cls: "bg-bad-50 text-bad-600", label: "Решение" },
   IMPLEMENTED: { icon: Rocket, cls: "bg-good-50 text-good-700", label: "Реализовано" },
+  DEADLINE: { icon: AlarmClock, cls: "bg-bad-50 text-bad-600", label: "Напоминание о сроке" },
 };
 
 export default function NotificationsPage() {

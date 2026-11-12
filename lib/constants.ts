@@ -59,6 +59,7 @@ export const TYPES: Record<RequestType, { label: string }> = {
   SUGGESTION: { label: "Предложение" },
   PROCESS: { label: "Улучшение процесса" },
   OTHER: { label: "Другое" },
+  FEEDBACK: { label: "Положительный отзыв" },
 };
 
 export const TYPE_ICONS_HINT: Record<RequestType, string> = {
@@ -67,6 +68,7 @@ export const TYPE_ICONS_HINT: Record<RequestType, string> = {
   SUGGESTION: "Предложение — конкретное изменение",
   PROCESS: "Улучшение процесса — оптимизация workflows",
   OTHER: "Другое — всё остальное",
+  FEEDBACK: "Положительный отзыв — то, что стоит сохранить и развивать",
 };
 
 export const ROLES: Record<Role, { label: string; hint: string }> = {
@@ -87,14 +89,26 @@ export const STATUS_ORDER: RequestStatus[] = [
 
 export const PRIORITIES_ORDER: Priority[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
+/** System categories mirror the demo dataset (A-001…A-020) and are always active. */
 export const SYSTEM_CATEGORIES: string[] = [
-  "cat-production",
-  "cat-logistics",
-  "cat-safety",
-  "cat-it",
-  "cat-management",
-  "cat-hr",
-  "cat-other",
+  "cat-01", // Межотдельное взаимодействие
+  "cat-02", // Информационная прозрачность
+  "cat-03", // Каталог и данные
+  "cat-04", // Обучение
+  "cat-05", // Документооборот
+  "cat-06", // Регламенты
+  "cat-07", // Интеграции и IT
+  "cat-08", // Знания и наставничество
+  "cat-09", // Договорная работа
+  "cat-10", // Задачи и коммуникации
+  "cat-11", // Оперативность
+  "cat-12", // Коммуникации
+  "cat-13", // Проектная деятельность
+  "cat-14", // Планирование ресурсов
+  "cat-15", // Постановка задач
+  "cat-16", // Корпоративная среда
+  "cat-17", // Хранение документов
+  "cat-18", // Прозрачность результатов
 ];
 
 export const DEMO_ACCOUNTS = [

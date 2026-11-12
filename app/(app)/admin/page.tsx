@@ -12,6 +12,7 @@ import {
   FolderTree,
   Plus,
   ShieldAlert,
+  Route,
 } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { enrichAll } from "@/lib/selectors";
@@ -32,11 +33,12 @@ import {
   Input,
   Modal,
   SectionTitle,
+  Select,
 } from "@/components/ui/kit";
 import { useState } from "react";
 
 function AdminPanelInner() {
-  const { user, snapshot, addCategory, updateCategory } = useApp();
+  const { user, snapshot, addCategory, updateCategory, setRoutingRule } = useApp();
   const router = useRouter();
   const [catModal, setCatModal] = useState(false);
   const [newCat, setNewCat] = useState("");
@@ -267,6 +269,45 @@ function AdminPanelInner() {
           </Card>
         </div>
       </div>
+
+      {/* Маршрутизация по категориям */}
+      <Card className="p-5">
+        <div className="mb-1 flex items-center gap-2">
+          <Route size={15} className="text-ink-400" />
+          <h2 className="text-[15px] font-bold tracking-[-0.01em] text-ink-900">Маршрутизация по категориям</h2>
+        </div>
+        <p className="mb-4 text-[12.5px] text-ink-500">
+          Правило по умолчанию: новое обращение автоматически направляется выбранному ответственному. Если правило не
+          задано, обращение попадает в очередь «Требуют назначения».
+        </p>
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {snapshot.categories.map((c) => {
+            const rule = snapshot.routing.find((x) => x.categoryId === c.id);
+            const routed = all.filter((r) => r.categoryId === c.id).length;
+            return (
+              <div key={c.id} className="flex items-center gap-2 rounded-xl border border-ink-100 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[12.5px] font-semibold text-ink-900">{c.name}</div>
+                  <div className="num text-[10.5px] text-ink-400">обращений: {routed}</div>
+                </div>
+                <Select
+                  value={rule?.assigneeId ?? ""}
+                  onChange={(e) => void setRoutingRule(c.id, e.target.value || null)}
+                  className="w-[190px] text-[12px]"
+                  disabled={!c.active}
+                >
+                  <option value="">Не назначать (вручную)</option>
+                  {managers.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1.2fr]">
         {/* Category distribution chart */}

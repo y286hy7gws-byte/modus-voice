@@ -15,6 +15,7 @@ import type {
   Category,
   Comment,
   NewRequestPayload,
+  NotificationItem,
   Request,
   Role,
   Snapshot,
@@ -61,6 +62,7 @@ interface AppState {
   deleteUser: (userId: string) => Promise<boolean>;
   addCategory: (name: string) => Promise<boolean>;
   updateCategory: (categoryId: string, patch: Partial<Pick<Category, "name" | "active">>) => Promise<boolean>;
+  setRoutingRule: (categoryId: string, assigneeId: string | null) => Promise<boolean>;
   resetDemo: () => Promise<void>;
   nameOf: (userId: string | null) => string;
 }
@@ -89,6 +91,57 @@ const STATUS_PHRASE: Record<Request["status"], string> = {
   IN_PROGRESS: "в работе",
   IMPLEMENTED: "реализовано",
 };
+
+/**
+ * Напоминания о сроках (ТЗ: уведомления автора и ответственных, контроль сроков).
+ * Генерируются при входе/восстановлении сессии; дедупликация по requestId+kind —
+ * на каждое обращение создаётся одно напоминание.
+ */
+async function runDeadlineCheck(
+  backend: Backend,
+  user: AuthedUser,
+  snap: Snapshot,
+): Promise<NotificationItem[]> {
+  const now = Date.now();
+  const DAY = 86400000;
+  const candidates = snap.requests.filter((r) => {
+    if (!r.dueDate) return false;
+    if (r.status === "IMPLEMENTED" || r.status === "REJECTED") return false;
+    if (r.assigneeId !== user.id && user.role !== "ADMIN") return false;
+    const due = new Date(r.dueDate).getTime();
+    return due - now < 3 * DAY; // просроченные или со сроком в ближайшие 3 дня
+  });
+  const items = candidates
+    .filter((r) => !snap.notifications.some((n) => n.kind === "DEADLINE" && n.requestId === r.id))
+    .map((r) => {
+      const overdue = new Date(r.dueDate!).getTime() < now;
+      const dateStr = new Date(r.dueDate!).toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+      return {
+        userId: user.id,
+        requestId: r.id,
+        kind: "DEADLINE" as const,
+        title: overdue ? `Срок истёк: ${r.id}` : `Приближается срок: ${r.id}`,
+        body: overdue
+          ? `Срок по обращению истёк (${dateStr}). Требуется решение или обновление срока.`
+          : `До срока по обращению осталось менее трёх дней (${dateStr}).`,
+      };
+    });
+  if (items.length === 0) return [];
+  try {
+    await backend.sendNotifications(items);
+  } catch (e) {
+    console.error("deadline reminders failed", e);
+    return [];
+  }
+  const createdAt = new Date().toISOString();
+  const stamp = Date.now().toString(36);
+  return items.map((it, i) => ({
+    ...it,
+    id: `n_deadline_${stamp}_${i}`,
+    read: false,
+    createdAt,
+  }));
+}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [backend] = useState<AppState["backend"]>(selectBackend);
@@ -121,7 +174,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (u) {
         setUser(u);
         try {
-          setSnapshot(await backend.loadSnapshot(u.id, u.role));
+          let snap = await backend.loadSnapshot(u.id, u.role);
+          const freshDeadlines = await runDeadlineCheck(backend, u, snap);
+          if (freshDeadlines.length > 0) {
+            snap = { ...snap, notifications: [...freshDeadlines, ...snap.notifications] };
+          }
+          setSnapshot(snap);
         } catch (e) {
           console.error(e);
         }
@@ -135,7 +193,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const u = await backend.signIn(email, password);
       setUser(u);
       try {
-        setSnapshot(await backend.loadSnapshot(u.id, u.role));
+        let snap = await backend.loadSnapshot(u.id, u.role);
+        const freshDeadlines = await runDeadlineCheck(backend, u, snap);
+        if (freshDeadlines.length > 0) {
+          snap = { ...snap, notifications: [...freshDeadlines, ...snap.notifications] };
+        }
+        setSnapshot(snap);
       } catch (e) {
         console.error(e);
       }
@@ -204,8 +267,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (payload: NewRequestPayload) => {
       if (!user) throw new Error("Требуется авторизация");
       const req = await backend.createRequest(user.id, payload);
+
+      // Автомаршрутизация (ТЗ: система направляет обращение ответственному по заданным правилам)
+      const rule = snapshot?.routing.find((x) => x.categoryId === payload.categoryId);
+      const autoAssigneeId = rule?.assigneeId ?? null;
+      const assigneeName =
+        autoAssigneeId
+          ? snapshot?.profiles.find((p) => p.id === autoAssigneeId)?.name ?? null
+          : null;
+      if (autoAssigneeId && autoAssigneeId !== user.id) {
+        try {
+          await backend.updateRequest(user.id, req.id, { assigneeId: autoAssigneeId }, null);
+        } catch (e) {
+          console.error("auto-assign failed", e);
+        }
+      }
+
       const admins = snapshot?.profiles.filter((p) => p.role === "ADMIN").map((p) => p.id) ?? [];
-      await notify([
+      const items: NotificationDraft[] = [
         {
           userId: user.id,
           requestId: req.id,
@@ -213,16 +292,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
           title: `Обращение ${req.id} зарегистрировано`,
           body: "Обращение получено и передано в систему. Отслеживать статус можно в разделе «Мои обращения».",
         },
-        ...admins
-          .filter((id) => id !== user.id)
-          .map((id) => ({
+      ];
+      if (autoAssigneeId && autoAssigneeId !== user.id) {
+        items.push({
+          userId: autoAssigneeId,
+          requestId: req.id,
+          kind: "ASSIGNED",
+          title: `Новое назначение ${req.id}`,
+          body: assigneeName
+            ? `Обращение направлено вам по правилу маршрутизации: ${req.title.slice(0, 70)}`
+            : req.title.slice(0, 90),
+        });
+      } else {
+        // Без правила — обращение попадает в очередь назначения администратора
+        for (const id of admins) {
+          if (id === user.id) continue;
+          items.push({
             userId: id,
             requestId: req.id,
-            kind: "REGISTERED" as const,
+            kind: "REGISTERED",
             title: `Новое обращение ${req.id}`,
             body: `${req.title.slice(0, 90)}`,
-          })),
-      ]);
+          });
+        }
+      }
+      await notify(items);
       await refresh();
       return req;
     },
@@ -521,6 +615,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [backend, user, refresh],
   );
 
+  const setRoutingRule = useCallback(
+    async (categoryId: string, assigneeId: string | null) => {
+      if (!user) return false;
+      try {
+        await backend.setRoutingRule(user.id, categoryId, assigneeId);
+        setSnapshot((prev) =>
+          prev
+            ? {
+                ...prev,
+                routing: prev.routing.some((x) => x.categoryId === categoryId)
+                  ? prev.routing.map((x) => (x.categoryId === categoryId ? { categoryId, assigneeId } : x))
+                  : [...prev.routing, { categoryId, assigneeId }],
+              }
+            : prev,
+        );
+        toast("success", "Правило маршрутизации сохранено");
+        return true;
+      } catch (e) {
+        toast("error", "Не удалось сохранить правило", e instanceof Error ? e.message : "");
+        return false;
+      }
+    },
+    [backend, user],
+  );
+
   const resetDemo = useCallback(async () => {
     if (!backend.resetDemo) return;
     await backend.resetDemo();
@@ -565,6 +684,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteUser,
       addCategory,
       updateCategory,
+      setRoutingRule,
       resetDemo,
       nameOf,
     }),
@@ -592,6 +712,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteUser,
       addCategory,
       updateCategory,
+      setRoutingRule,
       resetDemo,
       nameOf,
     ],
